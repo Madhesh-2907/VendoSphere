@@ -8,7 +8,7 @@ let sequelizeInstance = null;
 const initDb = async () => {
   if (sequelizeInstance) return sequelizeInstance;
 
-  // 1. Try MySQL
+  // 1. Try MySQL Connection
   try {
     const connection = await mysql.createConnection({
       host: env.db.host,
@@ -33,11 +33,11 @@ const initDb = async () => {
     });
 
     await instance.authenticate();
-    console.log('✅ Connected to MySQL database successfully via Sequelize');
+    console.log('Database connected successfully (MySQL)');
     sequelizeInstance = instance;
     return sequelizeInstance;
   } catch (error) {
-    console.warn(`⚠️ MySQL connection unavailable (${error.message}). Using SQLite storage...`);
+    console.warn(`⚠️ MySQL Server unavailable on port ${env.db.port} (${error.message}). Using SQLite storage fallback...`);
     const sqlitePath = path.join(__dirname, '../../campusprocure.sqlite');
     const instance = new Sequelize({
       dialect: 'sqlite',
@@ -49,8 +49,9 @@ const initDb = async () => {
         updatedAt: 'updated_at',
       },
     });
+
     await instance.authenticate();
-    console.log(`✅ Connected to SQLite database (${sqlitePath}) via Sequelize`);
+    console.log('Database connected successfully (SQLite)');
     sequelizeInstance = instance;
     return sequelizeInstance;
   }

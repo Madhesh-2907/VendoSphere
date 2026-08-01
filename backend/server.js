@@ -8,10 +8,9 @@ const startServer = async () => {
   try {
     const sequelize = await initDb();
     await sequelize.sync();
-    console.log('✅ Database synchronized successfully.');
 
     app.listen(PORT, () => {
-      console.log(`🚀 CampusProcure API Server running on port ${PORT}`);
+      console.log(`CampusProcure API Server running on port ${PORT}`);
       console.log(`📡 Healthcheck: http://localhost:${PORT}/api/health`);
     });
   } catch (error) {
