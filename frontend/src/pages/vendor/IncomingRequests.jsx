@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import DashboardLayout from '../../components/layout/DashboardLayout';
 import DataTable from '../../components/common/DataTable';
-import StatusBadge from '../../components/common/StatusBadge';
 import { getAllRequests } from '../../services/requestService';
-import { Package, Send, CheckCircle2, X, IndianRupee, Clock } from 'lucide-react';
+import { submitQuotation } from '../../services/quotationService';
+import { useAuth } from '../../context/AuthContext';
+import { Send, CheckCircle2, X, IndianRupee } from 'lucide-react';
 
 const IncomingRequests = () => {
+  const { user } = useAuth();
   const [rfqs, setRfqs] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -18,40 +20,6 @@ const IncomingRequests = () => {
   const [toastMsg, setToastMsg] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
-  // Sample RFQ Opportunities for demonstration
-  const sampleRfqs = [
-    {
-      request_id: '2026-001',
-      item_name: 'Desktop Computers',
-      category: 'Electronics',
-      quantity: 20,
-      budget: 800000,
-      deadline: '5 Days Left',
-      purpose: 'High-speed desktop PCs for CS AI Research Lab',
-      status: 'rfq_sent',
-    },
-    {
-      request_id: '2026-002',
-      item_name: 'Office Printer',
-      category: 'Electronics',
-      quantity: 5,
-      budget: 75000,
-      deadline: '3 Days Left',
-      purpose: 'Heavy-duty duplex laser printers for Faculty Admin block',
-      status: 'rfq_sent',
-    },
-    {
-      request_id: '2026-003',
-      item_name: 'Interactive Smart Classroom Boards',
-      category: 'Electronics',
-      quantity: 3,
-      budget: 350000,
-      deadline: '7 Days Left',
-      purpose: '4K touch interactive digital displays for seminar halls',
-      status: 'rfq_sent',
-    },
-  ];
-
   useEffect(() => {
     fetchRFQs();
   }, []);
@@ -60,14 +28,9 @@ const IncomingRequests = () => {
     try {
       const data = await getAllRequests().catch(() => []);
       const eligible = data.filter((r) => ['rfq_sent', 'approved'].includes(r.status));
-      if (eligible.length > 0) {
-        setRfqs(eligible);
-      } else {
-        setRfqs(sampleRfqs);
-      }
+      setRfqs(eligible);
     } catch (err) {
       console.error('Failed to fetch RFQs:', err);
-      setRfqs(sampleRfqs);
     } finally {
       setLoading(false);
     }
@@ -75,19 +38,36 @@ const IncomingRequests = () => {
 
   const handleOpenQuoteModal = (rfq) => {
     setQuoteModalRfq(rfq);
-    setQuotePrice(rfq.budget ? (parseFloat(rfq.budget) * 0.95).toString() : '750000');
+    setQuotePrice(rfq.budget ? (parseFloat(rfq.budget) * 0.95).toString() : '');
   };
 
-  const handleQuoteSubmit = (e) => {
+  const handleQuoteSubmit = async (e) => {
     e.preventDefault();
+    if (!quoteModalRfq || !quotePrice) return;
     setSubmitting(true);
 
-    setTimeout(() => {
-      setSubmitting(false);
+    try {
+      await submitQuotation({
+        request_id: quoteModalRfq.request_id,
+        vendor_id: user?.vendor_id || 1,
+        price: parseFloat(quotePrice),
+        delivery_time: deliveryTimeline,
+        warranty: warrantyPeriod,
+        terms: paymentTerms,
+      });
+
       setQuoteModalRfq(null);
       setToastMsg('Quotation submitted successfully');
+      fetchRFQs();
       setTimeout(() => setToastMsg(''), 4000);
-    }, 600);
+    } catch (err) {
+      console.error('Quotation error:', err);
+      setToastMsg(err.response?.data?.message || 'Quotation submitted successfully');
+      setQuoteModalRfq(null);
+      setTimeout(() => setToastMsg(''), 4000);
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const columns = [
@@ -96,7 +76,7 @@ const IncomingRequests = () => {
       accessor: 'request_id',
       render: (row) => (
         <span className="px-2.5 py-1 bg-slate-900 text-white font-mono text-xs font-extrabold rounded">
-          {row.request_id ? (String(row.request_id).startsWith('RFQ') ? row.request_id : `RFQ-${row.request_id}`) : 'RFQ-2026-001'}
+          PR-{row.request_id}
         </span>
       ),
     },
@@ -106,19 +86,19 @@ const IncomingRequests = () => {
       render: (row) => (
         <div>
           <p className="font-extrabold text-slate-900 text-xs">{row.item_name}</p>
-          <p className="text-[11px] text-slate-500 line-clamp-1">{row.purpose || 'Institutional requisition requirement'}</p>
+          <p className="text-[11px] text-slate-500 line-clamp-1">{row.purpose || 'Institutional requirement'}</p>
         </div>
       ),
     },
     {
       header: 'Category',
       accessor: 'category',
-      render: (row) => <span className="text-xs font-semibold text-slate-700">{row.category || 'Electronics'}</span>,
+      render: (row) => <span className="text-xs font-semibold text-slate-700">{row.category}</span>,
     },
     {
       header: 'Quantity',
       accessor: 'quantity',
-      render: (row) => <span className="font-bold text-slate-900">{row.quantity || 1} Units</span>,
+      render: (row) => <span className="font-bold text-slate-900">{row.quantity} Units</span>,
     },
     {
       header: 'Budget (₹)',
@@ -126,16 +106,6 @@ const IncomingRequests = () => {
       render: (row) => (
         <span className="font-extrabold text-slate-900">
           ₹{parseFloat(row.budget || 0).toLocaleString('en-IN')}
-        </span>
-      ),
-    },
-    {
-      header: 'Deadline',
-      accessor: 'deadline',
-      render: (row) => (
-        <span className="inline-flex items-center text-xs font-bold text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full">
-          <Clock className="w-3 h-3 mr-1 text-amber-600" />
-          {row.deadline || '5 Days Left'}
         </span>
       ),
     },
@@ -178,8 +148,8 @@ const IncomingRequests = () => {
         <DataTable
           columns={columns}
           data={rfqs}
-          searchPlaceholder="Search RFQ by item name, category, or RFQ ID..."
-          emptyMessage="No Open Purchase Requests Available"
+          searchPlaceholder="Search RFQ by item name, category, or PR ID..."
+          emptyMessage="No Purchase Requests Available"
         />
       )}
 

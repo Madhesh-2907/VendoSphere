@@ -1,13 +1,12 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import { Building2, Lock, Mail, User, ArrowRight, ShieldCheck, UserCheck, Store } from 'lucide-react';
+import { Building2, Lock, Mail, User, ArrowRight, UserCheck } from 'lucide-react';
 
 const Signup = () => {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [role, setRole] = useState('Faculty');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -30,14 +29,12 @@ const Signup = () => {
         name,
         email,
         password,
-        role: role === 'Faculty' ? 'employee' : 'vendor',
+        role: 'employee',
       });
 
       // Role-Based Redirection
       if (newUser.role === 'admin') {
         navigate('/admin/dashboard');
-      } else if (newUser.role === 'vendor') {
-        navigate('/vendor/dashboard');
       } else {
         navigate('/employee/dashboard');
       }
@@ -60,7 +57,7 @@ const Signup = () => {
           <div className="inline-flex p-2.5 rounded-2xl bg-white/10 backdrop-blur-xs mb-2 ring-1 ring-white/20">
             <Building2 className="w-7 h-7 text-blue-400" />
           </div>
-          <h1 className="text-xl font-extrabold tracking-tight">Create Portal Account</h1>
+          <h1 className="text-xl font-extrabold tracking-tight">Faculty Registration</h1>
           <p className="text-xs text-blue-200 mt-1 font-medium">
             CampusProcure Institutional ERP System
           </p>
@@ -120,15 +117,11 @@ const Signup = () => {
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-slate-700 mb-1">Account Role *</label>
-            <select
-              value={role}
-              onChange={(e) => setRole(e.target.value)}
-              className="w-full px-3 py-2.5 text-xs border border-slate-200 rounded-xl focus:ring-2 focus:ring-primary/20 focus:border-primary bg-slate-50/50 font-bold text-slate-800"
-            >
-              <option value="Faculty">Faculty (Employee)</option>
-              <option value="Vendor">Vendor (Supplier)</option>
-            </select>
+            <label className="block text-xs font-semibold text-slate-700 mb-1">Account Role</label>
+            <div className="flex items-center space-x-2 px-3 py-2.5 border border-slate-200 rounded-xl bg-slate-50 text-xs font-extrabold text-slate-800">
+              <UserCheck className="w-4 h-4 text-blue-600" />
+              <span>Faculty (Employee)</span>
+            </div>
           </div>
 
           <button
@@ -136,7 +129,7 @@ const Signup = () => {
             disabled={loading}
             className="w-full py-3 bg-primary hover:bg-slate-900 text-white font-bold rounded-xl text-xs transition-all shadow-md flex items-center justify-center space-x-2 disabled:opacity-50 mt-3"
           >
-            <span>{loading ? 'Creating Account...' : 'Register Account'}</span>
+            <span>{loading ? 'Registering Account...' : 'Register Account'}</span>
             <ArrowRight className="w-4 h-4" />
           </button>
         </form>

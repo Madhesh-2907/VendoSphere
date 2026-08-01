@@ -9,7 +9,14 @@ const register = async (req, res) => {
     const { name, email, password, role } = req.body;
 
     if (!name || !email || !password) {
-      return res.status(400).json({ message: 'Name, email, and password are required fields.' });
+      return res.status(400).json({ message: 'Full Name, Email, and Password are required.' });
+    }
+
+    // Public signup is restricted to Faculty (employee) only.
+    if (role && role.toLowerCase() === 'vendor') {
+      return res.status(400).json({
+        message: 'Vendor accounts must be created by System Admin from Vendor Directory.',
+      });
     }
 
     const normalizedEmail = email.toLowerCase().trim();
@@ -20,35 +27,13 @@ const register = async (req, res) => {
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
-    
-    // Role mapping: 'Faculty' or 'employee' -> 'employee', 'Vendor' or 'vendor' -> 'vendor'
-    let assignedRole = 'employee';
-    if (role && (role.toLowerCase() === 'vendor')) {
-      assignedRole = 'vendor';
-    } else if (role && (role.toLowerCase() === 'admin')) {
-      assignedRole = 'admin';
-    }
 
     const newUser = await User.create({
       name: name.trim(),
       email: normalizedEmail,
       password: hashedPassword,
-      role: assignedRole,
+      role: 'employee',
     });
-
-    let vendorProfile = null;
-    if (assignedRole === 'vendor') {
-      vendorProfile = await Vendor.create({
-        user_id: newUser.user_id,
-        company_name: name.trim(),
-        contact_person: name.trim(),
-        email: normalizedEmail,
-        category: 'Electronics and IT Equipment',
-        contact: normalizedEmail,
-        status: 'active',
-        rating: 4.8,
-      });
-    }
 
     const token = jwt.sign(
       { user_id: newUser.user_id, role: newUser.role, name: newUser.name, email: newUser.email },
@@ -57,14 +42,14 @@ const register = async (req, res) => {
     );
 
     return res.status(201).json({
-      message: 'Account registered successfully',
+      message: 'Faculty account registered successfully',
       token,
       user: {
         user_id: newUser.user_id,
         name: newUser.name,
         email: newUser.email,
         role: newUser.role,
-        vendor_id: vendorProfile ? vendorProfile.vendor_id : null,
+        vendor_id: null,
       },
     });
   } catch (error) {

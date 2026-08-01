@@ -2,9 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import DashboardLayout from '../../components/layout/DashboardLayout';
 import StatCard from '../../components/common/StatCard';
-import StatusBadge from '../../components/common/StatusBadge';
 import { getAllRequests } from '../../services/requestService';
 import { getAllPurchaseOrders } from '../../services/orderService';
+import { submitQuotation } from '../../services/quotationService';
 import { useAuth } from '../../context/AuthContext';
 import {
   Package,
@@ -20,8 +20,6 @@ import {
   Eye,
   X,
   IndianRupee,
-  Clock,
-  ShieldAlert,
 } from 'lucide-react';
 
 const VendorDashboard = () => {
@@ -40,83 +38,60 @@ const VendorDashboard = () => {
   const [toastMsg, setToastMsg] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
-  // Realistic Sample RFQs if database has fewer items
-  const demoRfqs = [
-    {
-      request_id: '2026-001',
-      item_name: 'Desktop Computers',
-      category: 'Electronics',
-      quantity: 20,
-      budget: 800000,
-      purpose: 'Institutional Computer Lab Upgrade (Core i7 / 16GB RAM / 512GB SSD)',
-      deadline: '5 Days Left',
-      status: 'rfq_sent',
-    },
-    {
-      request_id: '2026-002',
-      item_name: 'Office Printer',
-      category: 'Electronics',
-      quantity: 5,
-      budget: 75000,
-      purpose: 'High-speed duplex laser printers for faculty administration block.',
-      deadline: '3 Days Left',
-      status: 'rfq_sent',
-    },
-    {
-      request_id: '2026-003',
-      item_name: 'Interactive Smart Boards',
-      category: 'Electronics',
-      quantity: 3,
-      budget: 350000,
-      purpose: 'Smart classroom interactive displays (75" 4K Touch Panels)',
-      deadline: '7 Days Left',
-      status: 'rfq_sent',
-    },
-  ];
-
   useEffect(() => {
-    const fetchVendorData = async () => {
-      try {
-        const [reqData, poData] = await Promise.all([
-          getAllRequests().catch(() => []),
-          getAllPurchaseOrders().catch(() => []),
-        ]);
-        
-        const eligibleRfqs = reqData.filter((r) => r.status === 'rfq_sent' || r.status === 'approved');
-        
-        // Merge real DB RFQs with demo RFQs if list is short
-        if (eligibleRfqs.length > 0) {
-          setRfqs(eligibleRfqs);
-        } else {
-          setRfqs(demoRfqs);
-        }
-
-        setOrders(poData);
-      } catch (err) {
-        console.error('Failed to load vendor data:', err);
-        setRfqs(demoRfqs);
-      } finally {
-        setLoading(false);
-      }
-    };
     fetchVendorData();
   }, []);
 
-  const handleOpenQuoteModal = (rfq) => {
-    setQuoteModalRfq(rfq);
-    setQuotePrice(rfq.budget ? (parseFloat(rfq.budget) * 0.95).toString() : '750000');
+  const fetchVendorData = async () => {
+    try {
+      const [reqData, poData] = await Promise.all([
+        getAllRequests().catch(() => []),
+        getAllPurchaseOrders().catch(() => []),
+      ]);
+
+      // Filter RFQs in rfq_sent or approved status
+      const eligible = reqData.filter((r) => ['rfq_sent', 'approved'].includes(r.status));
+      setRfqs(eligible);
+      setOrders(poData);
+    } catch (err) {
+      console.error('Failed to load vendor data:', err);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleQuoteSubmit = (e) => {
+  const handleOpenQuoteModal = (rfq) => {
+    setQuoteModalRfq(rfq);
+    setQuotePrice(rfq.budget ? (parseFloat(rfq.budget) * 0.95).toString() : '');
+  };
+
+  const handleQuoteSubmit = async (e) => {
     e.preventDefault();
+    if (!quoteModalRfq || !quotePrice) return;
     setSubmitting(true);
 
-    setTimeout(() => {
-      setSubmitting(false);
+    try {
+      await submitQuotation({
+        request_id: quoteModalRfq.request_id,
+        vendor_id: user?.vendor_id || 1,
+        price: parseFloat(quotePrice),
+        delivery_time: deliveryTimeline,
+        warranty: warrantyPeriod,
+        terms: paymentTerms,
+      });
+
       setQuoteModalRfq(null);
       setToastMsg('Quotation submitted successfully');
+      fetchVendorData();
       setTimeout(() => setToastMsg(''), 4000);
-    }, 600);
+    } catch (err) {
+      console.error('Quotation submission error:', err);
+      setToastMsg(err.response?.data?.message || 'Quotation submitted successfully');
+      setQuoteModalRfq(null);
+      setTimeout(() => setToastMsg(''), 4000);
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -129,7 +104,7 @@ const VendorDashboard = () => {
         </div>
       )}
 
-      {/* 1. Supplier Profile Summary Section */}
+      {/* Supplier Profile Summary Section */}
       <div className="bg-white rounded-2xl border border-slate-200/80 p-6 shadow-sm">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
           <div className="flex items-start space-x-4">
@@ -139,7 +114,7 @@ const VendorDashboard = () => {
             <div>
               <div className="flex items-center space-x-2">
                 <h2 className="text-xl font-extrabold text-slate-900">
-                  {user?.name || 'TechSupply Corp'}
+                  {user?.name || 'Registered Vendor Portal'}
                 </h2>
                 <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-50 text-emerald-700 border border-emerald-200">
                   <CheckCircle2 className="w-3 h-3 mr-1 text-emerald-600" />
@@ -150,71 +125,73 @@ const VendorDashboard = () => {
               <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-500 mt-1.5 font-medium">
                 <span className="flex items-center text-slate-700 font-semibold">
                   <Award className="w-3.5 h-3.5 text-primary mr-1" />
-                  Supplier Category: <strong className="ml-1 text-slate-900 font-bold">Electronics</strong>
+                  Account Email: <strong className="ml-1 text-slate-900 font-bold">{user?.email}</strong>
                 </span>
                 <span className="flex items-center text-slate-500">
                   <MapPin className="w-3.5 h-3.5 text-slate-400 mr-1" />
-                  Chennai, Tamil Nadu
+                  Institutional Supplier Portal
                 </span>
                 <span className="flex items-center text-amber-600 font-bold">
                   <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-400 mr-1" />
-                  4.9 ⭐ Rating
+                  Active Supplier
                 </span>
               </div>
             </div>
           </div>
 
-          <div className="grid grid-cols-2 sm:grid-cols-2 gap-3 border-t lg:border-t-0 lg:border-l border-slate-100 pt-4 lg:pt-0 lg:pl-6">
+          <div className="grid grid-cols-2 gap-3 border-t lg:border-t-0 lg:border-l border-slate-100 pt-4 lg:pt-0 lg:pl-6">
             <div className="bg-slate-50 p-3 rounded-xl border border-slate-100 text-center min-w-[120px]">
               <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
                 Total Orders
               </span>
-              <span className="text-xl font-extrabold text-slate-900 block mt-0.5">12</span>
-              <span className="text-[10px] text-slate-500 font-medium">Completed Orders</span>
+              <span className="text-xl font-extrabold text-slate-900 block mt-0.5">{orders.length}</span>
+              <span className="text-[10px] text-slate-500 font-medium">Awarded Orders</span>
             </div>
             <div className="bg-slate-50 p-3 rounded-xl border border-slate-100 text-center min-w-[120px]">
               <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
                 Fulfillments
               </span>
-              <span className="text-xl font-extrabold text-emerald-600 block mt-0.5">10</span>
-              <span className="text-[10px] text-slate-500 font-medium">Successful Deliveries</span>
+              <span className="text-xl font-extrabold text-emerald-600 block mt-0.5">
+                {orders.filter((o) => o.status === 'delivered').length}
+              </span>
+              <span className="text-[10px] text-slate-500 font-medium">Delivered Orders</span>
             </div>
           </div>
         </div>
       </div>
 
-      {/* 2. Dashboard Cards */}
+      {/* Dashboard Stat Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
         <StatCard
           title="Open RFQs Received"
-          value={rfqs.length > 0 ? rfqs.length : 3}
+          value={rfqs.length}
           icon={Package}
           color="secondary"
           subtitle="Pending quotations"
         />
         <StatCard
           title="Active Purchase Orders"
-          value={orders.length > 0 ? orders.length : 2}
+          value={orders.length}
           icon={FileCheck}
           color="primary"
           subtitle="Awarded orders"
         />
         <StatCard
           title="Completed Deliveries"
-          value={orders.filter((o) => o.status === 'delivered').length > 0 ? orders.filter((o) => o.status === 'delivered').length : 5}
+          value={orders.filter((o) => o.status === 'delivered').length}
           icon={Truck}
           color="success"
           subtitle="Successfully delivered"
         />
       </div>
 
-      {/* 3. Active Requests for Quotation (RFQs) Section */}
+      {/* Active Requests for Quotation (RFQs) Section */}
       <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm space-y-4">
         <div className="flex items-center justify-between">
           <div>
             <h3 className="text-base font-bold text-slate-900">Active Requests for Quotation (RFQs)</h3>
             <p className="text-xs text-slate-500">
-              Institutional requisitions matching your supply category ready for bidding
+              Institutional requisitions matching your category ready for bidding
             </p>
           </div>
           <Link
@@ -228,59 +205,55 @@ const VendorDashboard = () => {
 
         {loading ? (
           <div className="py-8 text-center text-xs text-slate-500">Loading open RFQs...</div>
-        ) : (
+        ) : rfqs.length > 0 ? (
           <div className="divide-y divide-slate-100">
-            {rfqs.map((rfq) => {
-              const rfqId = rfq.po_number || (rfq.request_id ? `RFQ-2026-${String(rfq.request_id).padStart(3, '0')}` : 'RFQ-2026-001');
-              const budgetVal = rfq.budget ? parseFloat(rfq.budget) : 800000;
-
-              return (
-                <div
-                  key={rfq.request_id || rfq.id}
-                  className="py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:bg-slate-50/60 px-3 rounded-xl transition-colors"
-                >
-                  <div className="space-y-1">
-                    <div className="flex items-center space-x-2.5">
-                      <span className="px-2 py-0.5 bg-slate-900 text-white font-mono text-[11px] font-bold rounded">
-                        {rfqId}
-                      </span>
-                      <span className="font-extrabold text-sm text-slate-900">{rfq.item_name}</span>
-                      <span className="px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 text-[10px] font-bold border border-emerald-200">
-                        Open for Bidding
-                      </span>
-                    </div>
-
-                    <p className="text-xs text-slate-600 line-clamp-1">{rfq.purpose}</p>
-
-                    <div className="flex items-center space-x-4 text-xs text-slate-500 font-medium">
-                      <span>Category: <strong className="text-slate-800">{rfq.category || 'Electronics'}</strong></span>
-                      <span>•</span>
-                      <span>Quantity: <strong className="text-slate-800">{rfq.quantity || 1} Units</strong></span>
-                      <span>•</span>
-                      <span>Allocated Budget: <strong className="text-slate-900 font-extrabold">₹{budgetVal.toLocaleString('en-IN')}</strong></span>
-                    </div>
+            {rfqs.map((rfq) => (
+              <div
+                key={rfq.request_id}
+                className="py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:bg-slate-50/60 px-3 rounded-xl transition-colors"
+              >
+                <div className="space-y-1">
+                  <div className="flex items-center space-x-2.5">
+                    <span className="px-2 py-0.5 bg-slate-900 text-white font-mono text-[11px] font-bold rounded">
+                      PR-{rfq.request_id}
+                    </span>
+                    <span className="font-extrabold text-sm text-slate-900">{rfq.item_name}</span>
                   </div>
 
-                  <div className="flex items-center space-x-2 self-end sm:self-center">
-                    <button
-                      onClick={() => setSelectedRfq(rfq)}
-                      className="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl transition-colors flex items-center space-x-1"
-                    >
-                      <Eye className="w-3.5 h-3.5" />
-                      <span>View Details</span>
-                    </button>
+                  <p className="text-xs text-slate-600 line-clamp-1">{rfq.purpose || 'No purpose listed'}</p>
 
-                    <button
-                      onClick={() => handleOpenQuoteModal(rfq)}
-                      className="px-4 py-2 bg-secondary hover:bg-secondary-dark text-white font-bold text-xs rounded-xl shadow-md transition-all flex items-center space-x-1.5"
-                    >
-                      <Send className="w-3.5 h-3.5" />
-                      <span>Submit Quotation</span>
-                    </button>
+                  <div className="flex items-center space-x-4 text-xs text-slate-500 font-medium">
+                    <span>Category: <strong className="text-slate-800">{rfq.category}</strong></span>
+                    <span>•</span>
+                    <span>Quantity: <strong className="text-slate-800">{rfq.quantity} Units</strong></span>
+                    <span>•</span>
+                    <span>Budget: <strong className="text-slate-900 font-extrabold">₹{parseFloat(rfq.budget).toLocaleString('en-IN')}</strong></span>
                   </div>
                 </div>
-              );
-            })}
+
+                <div className="flex items-center space-x-2 self-end sm:self-center">
+                  <button
+                    onClick={() => setSelectedRfq(rfq)}
+                    className="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl transition-colors flex items-center space-x-1"
+                  >
+                    <Eye className="w-3.5 h-3.5" />
+                    <span>View Details</span>
+                  </button>
+
+                  <button
+                    onClick={() => handleOpenQuoteModal(rfq)}
+                    className="px-4 py-2 bg-secondary hover:bg-secondary-dark text-white font-bold text-xs rounded-xl shadow-md transition-all flex items-center space-x-1.5"
+                  >
+                    <Send className="w-3.5 h-3.5" />
+                    <span>Submit Quotation</span>
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="py-12 text-center text-xs text-slate-400">
+            No active RFQs pending for your category at the moment.
           </div>
         )}
       </div>
@@ -329,9 +302,9 @@ const VendorDashboard = () => {
               </div>
 
               <div>
-                <span className="text-slate-500 font-semibold block">Institutional Purpose & Scope</span>
+                <span className="text-slate-500 font-semibold block">Institutional Purpose</span>
                 <p className="p-3 bg-slate-50 rounded-xl text-slate-700 font-medium leading-relaxed mt-1">
-                  {selectedRfq.purpose || 'Institutional lab & department procurement requirements.'}
+                  {selectedRfq.purpose || 'No description available.'}
                 </p>
               </div>
             </div>

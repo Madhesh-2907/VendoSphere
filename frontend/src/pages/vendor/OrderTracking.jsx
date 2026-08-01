@@ -4,44 +4,13 @@ import DataTable from '../../components/common/DataTable';
 import StatusBadge from '../../components/common/StatusBadge';
 import TrackingModal from '../../components/common/TrackingModal';
 import { getAllPurchaseOrders, updatePOStatus } from '../../services/orderService';
-import { Truck, CheckCircle2, Eye, Package } from 'lucide-react';
+import { Truck, CheckCircle2, Eye } from 'lucide-react';
 
 const OrderTracking = () => {
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [trackingItem, setTrackingItem] = useState(null);
   const [updateMsg, setUpdateMsg] = useState('');
-
-  // Sample Purchase Orders for hackathon presentation
-  const demoOrders = [
-    {
-      po_id: 101,
-      po_number: 'PO-2026-001',
-      request_id: '2026-001',
-      item_name: 'Desktop Computers',
-      Request: { item_name: 'Desktop Computers', category: 'Electronics' },
-      amount: 750000,
-      status: 'issued',
-    },
-    {
-      po_id: 102,
-      po_number: 'PO-2026-002',
-      request_id: '2026-002',
-      item_name: 'Office Chairs',
-      Request: { item_name: 'Office Chairs', category: 'Furniture' },
-      amount: 120000,
-      status: 'shipped',
-    },
-    {
-      po_id: 103,
-      po_number: 'PO-2026-003',
-      request_id: '2026-003',
-      item_name: 'Printer',
-      Request: { item_name: 'Printer', category: 'Electronics' },
-      amount: 75000,
-      status: 'delivered',
-    },
-  ];
 
   useEffect(() => {
     fetchOrders();
@@ -50,14 +19,9 @@ const OrderTracking = () => {
   const fetchOrders = async () => {
     try {
       const data = await getAllPurchaseOrders().catch(() => []);
-      if (data && data.length > 0) {
-        setOrders(data);
-      } else {
-        setOrders(demoOrders);
-      }
+      setOrders(data);
     } catch (err) {
       console.error('Failed to fetch vendor orders:', err);
-      setOrders(demoOrders);
     } finally {
       setLoading(false);
     }
@@ -65,14 +29,9 @@ const OrderTracking = () => {
 
   const handleUpdateStatus = async (poId, nextStatus) => {
     try {
-      await updatePOStatus(poId, nextStatus).catch(() => null);
-      
-      // Update local state dynamically
-      setOrders((prev) =>
-        prev.map((ord) => (ord.po_id === poId ? { ...ord, status: nextStatus } : ord))
-      );
-
+      await updatePOStatus(poId, nextStatus);
       setUpdateMsg(`Order status successfully updated to ${nextStatus.toUpperCase()}`);
+      fetchOrders();
       setTimeout(() => setUpdateMsg(''), 4000);
     } catch (err) {
       console.error('Failed to update status:', err);
@@ -85,7 +44,7 @@ const OrderTracking = () => {
       accessor: 'po_number',
       render: (row) => (
         <span className="font-extrabold text-slate-900 text-xs px-2.5 py-1 bg-slate-100 rounded border border-slate-200">
-          {row.po_number || `PO-2026-00${row.po_id}`}
+          {row.po_number || `PO-${row.po_id}`}
         </span>
       ),
     },
@@ -97,7 +56,7 @@ const OrderTracking = () => {
         return (
           <div>
             <p className="font-bold text-slate-800 text-xs">{title}</p>
-            <p className="text-[11px] text-slate-500 font-mono">Ref: PR-{row.request_id || '2026'}</p>
+            <p className="text-[11px] text-slate-500 font-mono">Ref: PR-{row.request_id}</p>
           </div>
         );
       },
