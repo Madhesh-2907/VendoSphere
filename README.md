@@ -1,5 +1,7 @@
 # CampusProcure — Smart Institutional Procurement Management System
 
+DEPLOYED LINK : https://vendo-sphere.vercel.app/
+
 CampusProcure is a full-stack digital procurement platform built for higher education colleges and institutions. It digitizes manual purchase requests, administrative review & approvals, vendor RFQ dispatch, side-by-side quotation evaluation, purchase order auto-generation, and order delivery status tracking.
 
 ---
